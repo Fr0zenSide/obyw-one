@@ -34,6 +34,36 @@
 	}
 }
 
+# ─── Obyw.one Landing Page ─────────────────────────────────
+
+obyw.one {
+	root * /srv/www/obyw.one
+	file_server
+	encode gzip zstd
+
+	import security_headers
+
+	header {
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.obyw.one; script-src 'self' https://umami.obyw.one"
+		Cache-Control "public, max-age=3600"
+	}
+
+	@assets path /css/* /js/* /assets/*
+	header @assets Cache-Control "public, max-age=86400, immutable"
+
+	import access_log obyw.one
+}
+
+# ─── WWW Redirects ────────────────────────────────────────
+
+www.obyw.one {
+	redir https://obyw.one{uri} permanent
+}
+
+www.maya.fit {
+	redir https://maya.fit{uri} permanent
+}
+
 # ─── Maya.fit Landing Page ──────────────────────────────────
 
 maya.fit {
@@ -82,25 +112,26 @@ api.obyw.one {
 
 # ─── WabiSabi API (PocketBase) ──────────────────────────────
 # Native: systemctl start pocketbase@wabisabi-prod
+# Migrated from wabisabi.app (domain too expensive) to obyw.one subdomains
 
-api.wabisabi.app {
+wabisabi.obyw.one {
 	reverse_proxy localhost:8090
 
 	import security_headers
 	import cors_api
-	header Access-Control-Allow-Origin "https://wabisabi.app"
+	header Access-Control-Allow-Origin "https://wabisabi.obyw.one"
 
-	import access_log api.wabisabi.app
+	import access_log wabisabi.obyw.one
 }
 
-preprod-api.wabisabi.app {
+wabisabi-preprod.obyw.one {
 	reverse_proxy localhost:8190
 
 	import security_headers
 	import cors_api
-	header Access-Control-Allow-Origin "https://preprod.wabisabi.app"
+	header Access-Control-Allow-Origin "https://wabisabi-preprod.obyw.one"
 
-	import access_log preprod-api.wabisabi.app
+	import access_log wabisabi-preprod.obyw.one
 }
 
 # ─── Uptime Kuma (status page) ──────────────────────────────

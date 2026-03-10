@@ -1,0 +1,200 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      landings: ${{ steps.changes.outputs.landings }}
+      caddyfile: ${{ steps.changes.outputs.caddyfile }}
+      migrations: ${{ steps.changes.outputs.migrations }}
+      kuzzle: ${{ steps.changes.outputs.kuzzle }}
+      monitoring: ${{ steps.changes.outputs.monitoring }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          echo "landings=$(echo "$CHANGED" | grep -q '^landings/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "caddyfile=$(echo "$CHANGED" | grep -q '^deploy/Caddyfile' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "migrations=$(echo "$CHANGED" | grep -q '^pb_migrations/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "kuzzle=$(echo "$CHANGED" | grep -q '^deploy/docker-compose.kuzzle.yml' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "monitoring=$(echo "$CHANGED" | grep -q '^deploy/docker-compose.monitoring.yml' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  deploy-landings:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.landings == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy landing pages
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: echo "Landing pages deploy starting"
+
+      - name: Rsync landings to VPS
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP --delete
+          path: landings/
+          remote_path: /tmp/landings-staging/
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Move landings to /srv/www/
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            for dir in /tmp/landings-staging/*/; do
+              name=$(basename "$dir")
+              # Folder name uses dots as separator (obyw.one, maya.fit)
+              sudo mkdir -p "/srv/www/$name"
+              sudo rsync -a --delete "$dir" "/srv/www/$name/"
+            done
+            rm -rf /tmp/landings-staging
+
+  deploy-caddyfile:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.caddyfile == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate and deploy Caddyfile
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: echo "Caddyfile deploy starting"
+
+      - name: Upload Caddyfile
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: deploy/Caddyfile
+          remote_path: /tmp/Caddyfile.new
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Validate, backup, and reload Caddy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            sudo caddy validate --config /tmp/Caddyfile.new
+            sudo cp /etc/caddy/Caddyfile "/etc/caddy/Caddyfile.bak.$(date +%Y%m%d%H%M%S)"
+            sudo cp /tmp/Caddyfile.new /etc/caddy/Caddyfile
+            sudo systemctl reload caddy
+            rm /tmp/Caddyfile.new
+
+  deploy-migrations:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.migrations == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy PocketBase migrations
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: echo "Migrations deploy starting"
+
+      - name: Rsync migrations
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: pb_migrations/
+          remote_path: /opt/pocketbase/instances/obyw/prod/pb_migrations/
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Restart PocketBase
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            sudo tar czf "/opt/pocketbase/backups/obyw-prod-$(date +%Y%m%d%H%M%S).tar.gz" \
+              /opt/pocketbase/instances/obyw/prod/pb_data/
+            sudo systemctl restart pocketbase@obyw-prod
+
+  deploy-kuzzle:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.kuzzle == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Kuzzle stack
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: echo "Kuzzle deploy starting"
+
+      - name: Upload docker-compose
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: deploy/docker-compose.kuzzle.yml
+          remote_path: /opt/kuzzle/docker-compose.yml
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Restart Kuzzle
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: cd /opt/kuzzle && docker compose up -d
+
+  deploy-monitoring:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.monitoring == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload monitoring config
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: deploy/docker-compose.monitoring.yml
+          remote_path: /opt/monitoring/docker-compose.yml
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Restart monitoring
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: cd /opt/monitoring && docker compose up -d

@@ -1,73 +1,48 @@
-# DNS Setup — OVH → GitHub Pages
+# DNS Setup — OVH → VPS (Caddy)
 
-How to point OVH-managed domains to GitHub Pages for static landing pages.
-
-## GitHub Pages IPs (A records)
-
-```
-185.199.108.153
-185.199.109.153
-185.199.110.153
-185.199.111.153
-```
+How to point OVH-managed domains to the VPS for all services.
+All domains point to `92.134.242.73`. Caddy handles HTTPS via Let's Encrypt.
 
 ## Per-domain setup
 
-### obyw.one (portfolio root)
+### obyw.one (portfolio root + landing page)
 
-| Type  | Subdomain | Target | TTL |
-|-------|-----------|--------|-----|
-| A     | *(empty)* | 185.199.108.153 | 3600 |
-| A     | *(empty)* | 185.199.109.153 | 3600 |
-| A     | *(empty)* | 185.199.110.153 | 3600 |
-| A     | *(empty)* | 185.199.111.153 | 3600 |
-| CNAME | www       | fr0zenside.github.io. | 3600 |
+| Type  | Subdomain |      Target      | TTL  |
+|-------|-----------|------------------|------|
+| A     | *(empty)* | 92.134.242.73    | 3600 |
+| CNAME | www       | obyw.one.        | 3600 |
 
-GitHub repo: `Fr0zenSide/obyw-one` — Pages enabled, custom domain `obyw.one`.
+### maya.fit (landing page + API)
 
-### maya.fit (option A: GitHub Pages)
+| Type  | Subdomain |      Target      | TTL  |
+|-------|-----------|------------------|------|
+| A     | *(empty)* | 92.134.242.73    | 3600 |
+| CNAME | www       | maya.fit.        | 3600 |
+| A     | api       | 92.134.242.73    | 3600 |
 
-Same 4 A records for `@`, plus:
+> `api.maya.fit` serves the Kuzzle backend (port 7512).
 
-| Type  | Subdomain | Target | TTL |
-|-------|-----------|--------|-----|
-| CNAME | www       | fr0zenside.github.io. | 3600 |
-| A     | api       | *your-vps-ip* | 3600 |
+### Subdomains (services on VPS)
 
-> **Important**: `api.maya.fit` must stay on the VPS (Kuzzle backend).
+|    Subdomain    |   Service   |             Why            |
+|-----------------|-------------|----------------------------|
+| api.maya.fit    | Kuzzle      | Realtime WebSocket backend |
+| api.obyw.one    | PocketBase  | Data API                   |
+| umami.obyw.one  | Umami       | Analytics dashboard        |
+| status.obyw.one | Uptime Kuma | Monitoring                 |
 
-### maya.fit (option B: keep on VPS)
-
-If the landing page needs server-side features or you prefer Caddy:
-
-| Type  | Subdomain | Target | TTL |
-|-------|-----------|--------|-----|
-| A     | *(empty)* | *your-vps-ip* | 3600 |
-| A     | api       | *your-vps-ip* | 3600 |
-
-### Subdomains that MUST stay on VPS
-
-These serve APIs/services, not static pages:
-
-| Subdomain | Service | Why |
-|-----------|---------|-----|
-| api.maya.fit | Kuzzle | Realtime WebSocket backend |
-| api.obyw.one | PocketBase | Data API |
-| umami.obyw.one | Umami | Analytics dashboard |
-| status.obyw.one | Uptime Kuma | Monitoring |
-
-For these, add A records pointing to your VPS IP.
+All point to `92.134.242.73` via A records.
 
 ## OVH Manager steps
 
 1. Log in to [OVH Manager](https://www.ovh.com/manager/)
 2. Go to **Web Cloud** → **Domain Names** → select domain
 3. Click **DNS Zone** tab
-4. Delete existing A records for `@` (if pointing to old server)
-5. Click **Add an entry** → type **A** → leave subdomain empty → paste each GitHub IP
-6. Repeat for all 4 IPs
-7. Add CNAME: subdomain `www` → target `fr0zenside.github.io.` (with trailing dot)
-8. Add A record for `api` → your VPS IP (if needed)
+4. Delete any old A records for `@` (GitHub IPs `185.199.x.x` or old server)
+5. Delete any `www` TXT placeholder records (`"3|welcome"` etc.)
+6. Click **Add an entry** → type **A** → leave subdomain empty → paste `92.134.242.73`
+7. Add CNAME: subdomain `www` → target `<domain>.` (with trailing dot)
+8. Add A record for `api` if needed
 9. Save and wait 10-30 min for propagation
 
 ## Verify
@@ -75,28 +50,25 @@ For these, add A records pointing to your VPS IP.
 ```bash
 # Check DNS propagation
 dig obyw.one +short
-# Should show 185.199.108-111.153
+# Should show: 92.134.242.73
 
-# Check GitHub Pages
+dig maya.fit +short
+# Should show: 92.134.242.73
+
+# Check HTTPS (Caddy auto-provisions cert on first request)
 curl -I https://obyw.one
-# Should show: server: GitHub.com
+# Should show: server: Caddy
 
-# HTTPS auto-enables after DNS resolves (Let's Encrypt via GitHub)
+curl -I https://maya.fit
+# Should show: server: Caddy
 ```
-
-## GitHub side
-
-After DNS is set, verify in each repo:
-1. Go to repo **Settings** → **Pages**
-2. Custom domain should show as verified (green check)
-3. "Enforce HTTPS" should be checked
-
-If it shows "DNS check unsuccessful", wait longer or check for conflicting records.
 
 ## Adding a new domain
 
 1. Buy domain on OVH
-2. Add the 4 GitHub A records + www CNAME in DNS zone
-3. Create GitHub repo or add folder to `portfolio` repo
-4. Enable Pages, set custom domain
-5. Wait for DNS + HTTPS propagation
+2. Add A record for `@` → `92.134.242.73`
+3. Add CNAME for `www` → `<domain>.`
+4. Create landing page in `landings/<domain-name>/index.html`
+5. Add Caddy block in `deploy/Caddyfile`
+6. Push to `main` → GitHub Actions deploys
+7. Caddy auto-provisions HTTPS on first request (~30s)
