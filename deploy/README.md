@@ -40,6 +40,7 @@ No GitHub Pages — everything served directly by Caddy on the VPS.
 | **PocketBase** (WabiSabi) | Native | 8090 / 8190 | `wabisabi.obyw.one` | Per-project instance |
 | **Umami** | Docker | 3000 | `umami.obyw.one` | Analytics |
 | **Uptime Kuma** | Docker | 3001 | `status.obyw.one` | Status page |
+| **ntfy** | Docker | 2586 | `ntfy.obyw.one` | Push notifications for apps |
 
 ### Design Decisions
 
@@ -66,6 +67,7 @@ All domains point to VPS (`92.134.242.73`). Caddy provisions HTTPS automatically
 | `wabisabi-preprod.obyw.one` | A | `92.134.242.73` | PocketBase (WabiSabi preprod) |
 | `status.obyw.one` | A | `92.134.242.73` | Uptime Kuma |
 | `umami.obyw.one` | A | `92.134.242.73` | Analytics |
+| `ntfy.obyw.one` | A | `92.134.242.73` | Push notifications |
 
 ### OVH Setup Per Domain
 
@@ -353,6 +355,7 @@ update "obyw.one-Admin"   '<password>' "umami.obyw.one"
 update "obyw.one-Admin"   '<password>' "status.obyw.one"
 update "obyw.one-Admin"   '<password>' "wabisabi.obyw.one"
 update "obyw.one-Admin"   '<password>' "wabisabi-preprod.obyw.one"
+update "obyw.one-Admin"   '<password>' "ntfy.obyw.one"
 
 # ─── maya.fit ───
 update "maya.fit-Admin"   '<password>' "maya.fit"

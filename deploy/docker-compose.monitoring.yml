@@ -1,4 +1,4 @@
-# Monitoring stack — runs alongside existing Umami Docker setup
+# Monitoring & notifications stack
 # Usage: docker compose -f docker-compose.monitoring.yml up -d
 
 services:
@@ -11,5 +11,23 @@ services:
     volumes:
       - uptime-kuma-data:/app/data
 
+  ntfy:
+    image: binwiederhier/ntfy:latest
+    container_name: ntfy
+    restart: unless-stopped
+    command: serve
+    ports:
+      - "127.0.0.1:2586:80"
+    environment:
+      NTFY_BASE_URL: "https://ntfy.obyw.one"
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_ATTACHMENT_CACHE_DIR: "/var/cache/ntfy/attachments"
+      NTFY_CACHE_FILE: "/var/cache/ntfy/cache.db"
+    volumes:
+      - ntfy-cache:/var/cache/ntfy
+      - ntfy-etc:/etc/ntfy
+
 volumes:
   uptime-kuma-data:
+  ntfy-cache:
+  ntfy-etc:

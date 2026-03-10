@@ -141,6 +141,16 @@ status.obyw.one {
 	reverse_proxy localhost:3001
 }
 
+# ─── ntfy (push notifications) ────────────────────────────
+
+ntfy.obyw.one {
+	reverse_proxy localhost:2586
+
+	import security_headers
+
+	import access_log ntfy.obyw.one
+}
+
 # ─── Umami (analytics) ─────────────────────────────────────
 
 umami.obyw.one {
