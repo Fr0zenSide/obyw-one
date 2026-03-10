@@ -40,15 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy landing pages
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: echo "Landing pages deploy starting"
-
-      - name: Rsync landings to VPS
+      - name: Rsync landings to staging
         uses: burnett01/rsync-deployments@7.0.1
         with:
           switches: -azP --delete
@@ -67,7 +59,6 @@ jobs:
           script: |
             for dir in /tmp/landings-staging/*/; do
               name=$(basename "$dir")
-              # Folder name uses dots as separator (obyw.one, maya.fit)
               sudo mkdir -p "/srv/www/$name"
               sudo rsync -a --delete "$dir" "/srv/www/$name/"
             done
@@ -79,14 +70,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Validate and deploy Caddyfile
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: echo "Caddyfile deploy starting"
 
       - name: Upload Caddyfile
         uses: burnett01/rsync-deployments@7.0.1
@@ -129,37 +112,43 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             if [ ! -f /opt/pocketbase/pocketbase ]; then
-              echo "⏭ PocketBase not installed — skipping migrations"
+              echo "⏭ PocketBase not installed — skipping"
               exit 0
             fi
             sudo mkdir -p /opt/pocketbase/instances/obyw/prod/pb_migrations
             sudo mkdir -p /opt/pocketbase/backups
-            echo "PocketBase found — ready for deploy"
+            echo "PocketBase found — ready for rsync"
 
-      - name: Rsync migrations
+      - name: Upload migrations
         uses: burnett01/rsync-deployments@7.0.1
         with:
           switches: -azP
           path: pb_migrations/
-          remote_path: /opt/pocketbase/instances/obyw/prod/pb_migrations/
+          remote_path: /tmp/pb-migrations-staging/
           remote_host: ${{ secrets.DEPLOY_HOST }}
           remote_user: ${{ secrets.DEPLOY_USER }}
           remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Restart PocketBase
+      - name: Apply migrations and restart
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            if ! systemctl is-active --quiet pocketbase@obyw-prod 2>/dev/null; then
-              echo "⏭ pocketbase@obyw-prod not running — skipping restart"
+            if [ ! -f /opt/pocketbase/pocketbase ]; then
+              rm -rf /tmp/pb-migrations-staging
               exit 0
             fi
-            sudo tar czf "/opt/pocketbase/backups/obyw-prod-$(date +%Y%m%d%H%M%S).tar.gz" \
-              /opt/pocketbase/instances/obyw/prod/pb_data/
-            sudo systemctl restart pocketbase@obyw-prod
+            sudo rsync -a /tmp/pb-migrations-staging/ /opt/pocketbase/instances/obyw/prod/pb_migrations/
+            rm -rf /tmp/pb-migrations-staging
+            if systemctl is-active --quiet pocketbase@obyw-prod 2>/dev/null; then
+              sudo tar czf "/opt/pocketbase/backups/obyw-prod-$(date +%Y%m%d%H%M%S).tar.gz" \
+                /opt/pocketbase/instances/obyw/prod/pb_data/
+              sudo systemctl restart pocketbase@obyw-prod
+            else
+              echo "⏭ pocketbase@obyw-prod not running — migrations copied but not applied"
+            fi
 
   deploy-kuzzle:
     needs: detect-changes
@@ -168,7 +157,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy Kuzzle stack
+      - name: Upload docker-compose
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: deploy/docker-compose.kuzzle.yml
+          remote_path: /tmp/docker-compose.kuzzle.yml
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Deploy Kuzzle
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -177,33 +176,12 @@ jobs:
           script: |
             if ! command -v docker &>/dev/null; then
               echo "⏭ Docker not installed — skipping Kuzzle"
+              rm -f /tmp/docker-compose.kuzzle.yml
               exit 0
             fi
             sudo mkdir -p /opt/kuzzle
-            echo "Docker found — ready for deploy"
-
-      - name: Upload docker-compose
-        uses: burnett01/rsync-deployments@7.0.1
-        with:
-          switches: -azP
-          path: deploy/docker-compose.kuzzle.yml
-          remote_path: /opt/kuzzle/docker-compose.yml
-          remote_host: ${{ secrets.DEPLOY_HOST }}
-          remote_user: ${{ secrets.DEPLOY_USER }}
-          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Restart Kuzzle
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            if [ ! -f /opt/kuzzle/docker-compose.yml ]; then
-              echo "⏭ No Kuzzle compose file — skipping"
-              exit 0
-            fi
-            cd /opt/kuzzle && docker compose up -d
+            sudo mv /tmp/docker-compose.kuzzle.yml /opt/kuzzle/docker-compose.yml
+            cd /opt/kuzzle && sudo docker compose up -d
 
   deploy-monitoring:
     needs: detect-changes
@@ -211,6 +189,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Upload monitoring config
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: deploy/docker-compose.monitoring.yml
+          remote_path: /tmp/docker-compose.monitoring.yml
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Deploy monitoring
         uses: appleboy/ssh-action@v1
@@ -221,30 +209,9 @@ jobs:
           script: |
             if ! command -v docker &>/dev/null; then
               echo "⏭ Docker not installed — skipping monitoring"
+              rm -f /tmp/docker-compose.monitoring.yml
               exit 0
             fi
             sudo mkdir -p /opt/monitoring
-            echo "Docker found — ready for deploy"
-
-      - name: Upload monitoring config
-        uses: burnett01/rsync-deployments@7.0.1
-        with:
-          switches: -azP
-          path: deploy/docker-compose.monitoring.yml
-          remote_path: /opt/monitoring/docker-compose.yml
-          remote_host: ${{ secrets.DEPLOY_HOST }}
-          remote_user: ${{ secrets.DEPLOY_USER }}
-          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
-
-      - name: Restart monitoring
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            if [ ! -f /opt/monitoring/docker-compose.yml ]; then
-              echo "⏭ No monitoring compose file — skipping"
-              exit 0
-            fi
-            cd /opt/monitoring && docker compose up -d
+            sudo mv /tmp/docker-compose.monitoring.yml /opt/monitoring/docker-compose.yml
+            cd /opt/monitoring && sudo docker compose up -d
