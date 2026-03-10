@@ -1160,7 +1160,7 @@ var waitlistEmail = document.getElementById('waitlistEmail');
 var waitlistBtn = document.getElementById('waitlistBtn');
 var waitlistFeedback = document.getElementById('waitlistFeedback');
 
-waitlistForm.addEventListener('submit', async function(e) {
+if (waitlistForm) waitlistForm.addEventListener('submit', async function(e) {
   e.preventDefault();
 
   var email = waitlistEmail.value.trim();
