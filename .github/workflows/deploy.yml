@@ -3,6 +3,12 @@ name: Deploy to VPS
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: 'Deploy everything (bypass change detection)'
+        type: boolean
+        default: true
 
 jobs:
   detect-changes:
@@ -29,7 +35,7 @@ jobs:
 
   deploy-landings:
     needs: detect-changes
-    if: needs.detect-changes.outputs.landings == 'true'
+    if: needs.detect-changes.outputs.landings == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +75,7 @@ jobs:
 
   deploy-caddyfile:
     needs: detect-changes
-    if: needs.detect-changes.outputs.caddyfile == 'true'
+    if: needs.detect-changes.outputs.caddyfile == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,7 +113,7 @@ jobs:
 
   deploy-migrations:
     needs: detect-changes
-    if: needs.detect-changes.outputs.migrations == 'true'
+    if: needs.detect-changes.outputs.migrations == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -143,7 +149,7 @@ jobs:
 
   deploy-kuzzle:
     needs: detect-changes
-    if: needs.detect-changes.outputs.kuzzle == 'true'
+    if: needs.detect-changes.outputs.kuzzle == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -176,7 +182,7 @@ jobs:
 
   deploy-monitoring:
     needs: detect-changes
-    if: needs.detect-changes.outputs.monitoring == 'true'
+    if: needs.detect-changes.outputs.monitoring == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
