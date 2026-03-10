@@ -1,0 +1,73 @@
+{
+  "monitors": [
+    {
+      "name": "maya.fit (landing)",
+      "type": "http",
+      "url": "https://maya.fit",
+      "interval": 60,
+      "maxretries": 3
+    },
+    {
+      "name": "api.obyw.one (PocketBase prod)",
+      "type": "http",
+      "url": "https://api.obyw.one/api/health",
+      "interval": 60,
+      "maxretries": 3
+    },
+    {
+      "name": "preprod-api.obyw.one",
+      "type": "http",
+      "url": "https://preprod-api.obyw.one/api/health",
+      "interval": 120,
+      "maxretries": 2
+    },
+    {
+      "name": "api.wabisabi.app (PocketBase prod)",
+      "type": "http",
+      "url": "https://api.wabisabi.app/api/health",
+      "interval": 60,
+      "maxretries": 3
+    },
+    {
+      "name": "preprod-api.wabisabi.app",
+      "type": "http",
+      "url": "https://preprod-api.wabisabi.app/api/health",
+      "interval": 120,
+      "maxretries": 2
+    },
+    {
+      "name": "Umami",
+      "type": "http",
+      "url": "https://umami.obyw.one",
+      "interval": 120,
+      "maxretries": 2
+    },
+    {
+      "name": "Caddy",
+      "type": "http",
+      "url": "https://obyw.one",
+      "interval": 60,
+      "maxretries": 3
+    },
+    {
+      "name": "Shiki (if installed)",
+      "type": "http",
+      "url": "http://localhost:3900/health",
+      "interval": 120,
+      "maxretries": 2
+    }
+  ],
+  "notification_channels": [
+    {
+      "name": "ntfy",
+      "type": "ntfy",
+      "note": "Configure in Uptime Kuma UI: Settings > Notifications > ntfy"
+    }
+  ],
+  "status_page": {
+    "slug": "status",
+    "title": "OBYW Status",
+    "description": "Service status for obyw.one and related services",
+    "note": "Create in Uptime Kuma UI: Status Pages > New, then add all monitors above"
+  }
+}

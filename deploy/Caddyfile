@@ -1,0 +1,117 @@
+# ─── Obyw.one — Unified Caddy Configuration ─────────────────
+# Native systemd install, auto HTTPS via Let's Encrypt
+#
+# Install: sudo cp Caddyfile /etc/caddy/Caddyfile
+# Reload:  sudo systemctl reload caddy
+# Logs:    journalctl -u caddy -f
+
+# ─── Shared snippets ────────────────────────────────────────
+
+(security_headers) {
+	header {
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+}
+
+(cors_api) {
+	header {
+		Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
+	}
+}
+
+(access_log) {
+	log {
+		output file /var/log/caddy/{args[0]}.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}
+
+# ─── Maya.fit Landing Page ──────────────────────────────────
+
+maya.fit {
+	root * /srv/www/maya.fit
+	file_server
+	encode gzip zstd
+
+	import security_headers
+
+	header {
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.maya.fit https://api.obyw.one"
+		Cache-Control "public, max-age=3600"
+	}
+
+	@assets path /css/* /js/* /assets/*
+	header @assets Cache-Control "public, max-age=86400, immutable"
+
+	import access_log maya.fit
+}
+
+# ─── Maya API (Kuzzle) ─────────────────────────────────────
+# Docker: docker compose -f docker-compose.kuzzle.yml up -d
+
+api.maya.fit {
+	reverse_proxy localhost:7512
+
+	import security_headers
+	import cors_api
+	header Access-Control-Allow-Origin "https://maya.fit"
+
+	import access_log api.maya.fit
+}
+
+# ─── OBYW API (PocketBase — shared cross-app) ──────────────
+# Native: systemctl start pocketbase@obyw-prod
+
+api.obyw.one {
+	reverse_proxy localhost:8091
+
+	import security_headers
+	import cors_api
+	header Access-Control-Allow-Origin "https://maya.fit"
+
+	import access_log api.obyw.one
+}
+
+# ─── WabiSabi API (PocketBase) ──────────────────────────────
+# Native: systemctl start pocketbase@wabisabi-prod
+
+api.wabisabi.app {
+	reverse_proxy localhost:8090
+
+	import security_headers
+	import cors_api
+	header Access-Control-Allow-Origin "https://wabisabi.app"
+
+	import access_log api.wabisabi.app
+}
+
+preprod-api.wabisabi.app {
+	reverse_proxy localhost:8190
+
+	import security_headers
+	import cors_api
+	header Access-Control-Allow-Origin "https://preprod.wabisabi.app"
+
+	import access_log preprod-api.wabisabi.app
+}
+
+# ─── Uptime Kuma (status page) ──────────────────────────────
+# Docker: docker compose -f docker-compose.monitoring.yml up -d
+
+status.obyw.one {
+	reverse_proxy localhost:3001
+}
+
+# ─── Umami (analytics) ─────────────────────────────────────
+
+umami.obyw.one {
+	reverse_proxy localhost:3000
+}

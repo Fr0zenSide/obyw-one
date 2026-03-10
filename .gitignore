@@ -1,0 +1,9 @@
+# Secrets
+.deploy.env
+
+# macOS
+.DS_Store
+
+# Editor
+.vscode/
+.idea/

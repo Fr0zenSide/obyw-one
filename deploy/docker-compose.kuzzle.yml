@@ -1,0 +1,75 @@
+# ─── Kuzzle Backend for Maya.fit ──────────────────────────
+# Single prod instance — will migrate to dedicated VPS later
+#
+# Start:  docker compose -f docker-compose.kuzzle.yml up -d
+# Stop:   docker compose -f docker-compose.kuzzle.yml down
+# Logs:   docker compose -f docker-compose.kuzzle.yml logs -f kuzzle
+# Status: docker compose -f docker-compose.kuzzle.yml ps
+#
+# Kuzzle API: http://localhost:7512
+# Kuzzle Admin: http://localhost:7512/_plugin/functional-test-plugin (or use Kourou CLI)
+#
+# Caddy reverse proxy: api.maya.fit → localhost:7512
+
+services:
+  kuzzle:
+    image: kuzzleio/kuzzle:2
+    container_name: maya-kuzzle
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:7512:7512"
+    environment:
+      - kuzzle_services__storageEngine__client__node=http://elasticsearch:9200
+      - kuzzle_services__internalCache__node__host=redis
+      - kuzzle_services__memoryStorage__node__host=redis
+      - NODE_ENV=production
+    volumes:
+      - kuzzle-plugins:/var/app/plugins/enabled
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7512/_healthCheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  elasticsearch:
+    image: elasticsearch:7.17.24
+    container_name: maya-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: maya-redis
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  es-data:
+    driver: local
+  redis-data:
+    driver: local
+  kuzzle-plugins:
+    driver: local
