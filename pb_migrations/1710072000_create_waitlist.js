@@ -1,22 +1,41 @@
 migrate((app) => {
-  const collection = new Collection({
-    name: "waitlist",
-    type: "base",
-    schema: [
-      { name: "email", type: "email", required: true, options: {} },
-      { name: "source", type: "text", required: true, options: { min: 1, max: 50 } },
-      { name: "status", type: "select", required: true, options: { maxSelect: 1, values: ["pending", "invited", "joined"] } },
-      { name: "notes", type: "text", required: false, options: {} }
-    ],
-    indexes: ["CREATE UNIQUE INDEX idx_waitlist_email ON waitlist (email)"],
-    createRule: "",
-    listRule: null,
-    viewRule: null,
-    updateRule: null,
-    deleteRule: null
-  });
-  return app.save(collection);
+  const collection = new BaseCollection()
+  collection.name = "waitlist"
+  collection.type = "base"
+  collection.listRule = null
+  collection.viewRule = null
+  collection.createRule = ""
+  collection.updateRule = null
+  collection.deleteRule = null
+
+  collection.fields.add(new EmailField({
+    name: "email",
+    required: true,
+  }))
+
+  collection.fields.add(new TextField({
+    name: "source",
+    required: true,
+    min: 1,
+    max: 50,
+  }))
+
+  collection.fields.add(new SelectField({
+    name: "status",
+    required: true,
+    maxSelect: 1,
+    values: ["pending", "invited", "joined"],
+  }))
+
+  collection.fields.add(new TextField({
+    name: "notes",
+    required: false,
+  }))
+
+  collection.indexes = ["CREATE UNIQUE INDEX idx_waitlist_email ON waitlist (email)"]
+
+  return app.save(collection)
 }, (app) => {
-  const collection = app.findCollectionByNameOrId("waitlist");
-  return app.delete(collection);
-});
+  const collection = app.findCollectionByNameOrId("waitlist")
+  return app.delete(collection)
+})
