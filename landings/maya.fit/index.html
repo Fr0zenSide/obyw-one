@@ -1172,7 +1172,7 @@ if (waitlistForm) waitlistForm.addEventListener('submit', async function(e) {
   waitlistFeedback.className = 'waitlist-feedback';
 
   try {
-    var res = await fetch('https://api.obyw.one/api/collections/waitlist/records', {
+    var res = await fetch('https://back.obyw.one/api/collections/waitlist/records', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

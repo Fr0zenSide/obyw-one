@@ -24,7 +24,7 @@ obyw-one/
 |---------|---------|-----|---------|
 | **Maya.fit** | `maya.fit` | `api.maya.fit` | Kuzzle (Docker) |
 | **WabiSabi** | `wabisabi.app` | `api.wabisabi.app` | PocketBase (native) |
-| **Obyw.one** | `obyw.one` | `api.obyw.one` | PocketBase (native, shared) |
+| **Obyw.one** | `obyw.one` | `back.obyw.one` | PocketBase (native, shared) |
 
 ## Deployment
 

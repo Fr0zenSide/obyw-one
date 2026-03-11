@@ -27,7 +27,7 @@ All domains point to `92.134.242.73`. Caddy handles HTTPS via Let's Encrypt.
 |    Subdomain    |   Service   |             Why            |
 |-----------------|-------------|----------------------------|
 | api.maya.fit    | Kuzzle      | Realtime WebSocket backend |
-| api.obyw.one    | PocketBase  | Data API                   |
+| back.obyw.one    | PocketBase  | Data API                   |
 | umami.obyw.one  | Umami       | Analytics dashboard        |
 | status.obyw.one | Uptime Kuma | Monitoring                 |
 

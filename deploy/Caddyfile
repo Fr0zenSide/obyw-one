@@ -54,7 +54,7 @@ obyw.one {
 	import security_headers
 
 	header {
-		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://api.obyw.one; script-src 'self' https://umami.obyw.one"
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://back.obyw.one; script-src 'self' https://umami.obyw.one"
 		Cache-Control "public, max-age=3600"
 	}
 
@@ -84,7 +84,7 @@ maya.fit {
 	import security_headers
 
 	header {
-		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.maya.fit https://api.obyw.one"
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://api.maya.fit https://back.obyw.one"
 		Cache-Control "public, max-age=3600"
 	}
 
@@ -115,13 +115,13 @@ api.maya.fit {
 # ─── OBYW API (PocketBase — shared cross-app) ──────────────
 # Native: systemctl start pocketbase@obyw-prod
 
-api.obyw.one {
+back.obyw.one {
 	import security_headers
 
 	# PocketBase handles CORS natively — don't duplicate headers
 	reverse_proxy localhost:8091
 
-	import access_log api.obyw.one
+	import access_log back.obyw.one
 }
 
 # ─── WabiSabi API (PocketBase) ──────────────────────────────
