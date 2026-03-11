@@ -16,6 +16,7 @@ jobs:
     outputs:
       landings: ${{ steps.changes.outputs.landings }}
       caddyfile: ${{ steps.changes.outputs.caddyfile }}
+      pocketbase: ${{ steps.changes.outputs.pocketbase }}
       migrations: ${{ steps.changes.outputs.migrations }}
       kuzzle: ${{ steps.changes.outputs.kuzzle }}
       monitoring: ${{ steps.changes.outputs.monitoring }}
@@ -31,6 +32,7 @@ jobs:
           echo "caddyfile=$(echo "$CHANGED" | grep -q '^deploy/Caddyfile' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "migrations=$(echo "$CHANGED" | grep -q '^pb_migrations/' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "kuzzle=$(echo "$CHANGED" | grep -q '^deploy/docker-compose.kuzzle.yml' && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "pocketbase=$(echo "$CHANGED" | grep -q '^deploy/setup-pocketbase.sh' && echo true || echo false)" >> "$GITHUB_OUTPUT"
           echo "monitoring=$(echo "$CHANGED" | grep -q '^deploy/docker-compose.monitoring.yml' && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   deploy-landings:
@@ -97,9 +99,43 @@ jobs:
             sudo systemctl reload caddy
             rm /tmp/Caddyfile.new
 
-  deploy-migrations:
+  setup-pocketbase:
     needs: detect-changes
-    if: needs.detect-changes.outputs.migrations == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.detect-changes.outputs.pocketbase == 'true' || needs.detect-changes.outputs.migrations == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload setup script
+        uses: burnett01/rsync-deployments@7.0.1
+        with:
+          switches: -azP
+          path: deploy/setup-pocketbase.sh
+          remote_path: /tmp/setup-pocketbase.sh
+          remote_host: ${{ secrets.DEPLOY_HOST }}
+          remote_user: ${{ secrets.DEPLOY_USER }}
+          remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Bootstrap PocketBase if not installed
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            if [ -f /opt/pocketbase/pocketbase ]; then
+              echo "✅ PocketBase already installed"
+              /opt/pocketbase/pocketbase --version 2>/dev/null || true
+              rm -f /tmp/setup-pocketbase.sh
+              exit 0
+            fi
+            echo "📦 PocketBase not found — bootstrapping..."
+            sudo bash /tmp/setup-pocketbase.sh bootstrap
+            rm -f /tmp/setup-pocketbase.sh
+
+  deploy-migrations:
+    needs: [detect-changes, setup-pocketbase]
+    if: always() && (needs.detect-changes.outputs.migrations == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
