@@ -118,23 +118,7 @@ api.maya.fit {
 api.obyw.one {
 	import security_headers
 
-	@options method OPTIONS
-	handle @options {
-		header {
-			Access-Control-Allow-Origin "{header.Origin}"
-			Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-			Access-Control-Allow-Headers "Content-Type, Authorization"
-			Access-Control-Max-Age "86400"
-		}
-		respond 204
-	}
-
-	header {
-		Access-Control-Allow-Origin "{header.Origin}"
-		Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-		Access-Control-Allow-Headers "Content-Type, Authorization"
-	}
-
+	# PocketBase handles CORS natively — don't duplicate headers
 	reverse_proxy localhost:8091
 
 	import access_log api.obyw.one
@@ -147,13 +131,7 @@ api.obyw.one {
 wabisabi.obyw.one {
 	import security_headers
 
-	@options method OPTIONS
-	handle @options {
-		import cors_preflight "https://wabisabi.obyw.one"
-		respond 204
-	}
-
-	import cors_headers "https://wabisabi.obyw.one"
+	# PocketBase handles CORS natively
 	reverse_proxy localhost:8090
 
 	import access_log wabisabi.obyw.one
@@ -162,13 +140,7 @@ wabisabi.obyw.one {
 wabisabi-preprod.obyw.one {
 	import security_headers
 
-	@options method OPTIONS
-	handle @options {
-		import cors_preflight "https://wabisabi-preprod.obyw.one"
-		respond 204
-	}
-
-	import cors_headers "https://wabisabi-preprod.obyw.one"
+	# PocketBase handles CORS natively
 	reverse_proxy localhost:8190
 
 	import access_log wabisabi-preprod.obyw.one
