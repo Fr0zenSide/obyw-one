@@ -52,15 +52,24 @@ jobs:
           remote_user: ${{ secrets.DEPLOY_USER }}
           remote_key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Move landings to /srv/www/
+      - name: Stamp version and move landings to /srv/www/
         uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_REF: ${{ github.ref_name }}
+          DEPLOY_RUN: ${{ github.run_id }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: DEPLOY_SHA,DEPLOY_REF,DEPLOY_RUN
           script: |
             for dir in /tmp/landings-staging/*/; do
               name=$(basename "$dir")
+              # Stamp version.json in each landing
+              cat > "$dir/version.json" <<VJSON
+            {"sha":"${DEPLOY_SHA}","branch":"${DEPLOY_REF}","run":"${DEPLOY_RUN}","deployed":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","service":"landing:${name}"}
+            VJSON
               sudo mkdir -p "/srv/www/$name"
               sudo rsync -a --delete "$dir" "/srv/www/$name/"
             done
@@ -251,3 +260,85 @@ jobs:
             sudo mkdir -p /opt/monitoring
             sudo mv /tmp/docker-compose.monitoring.yml /opt/monitoring/docker-compose.yml
             cd /opt/monitoring && sudo docker compose up -d
+
+  verify-deploy:
+    needs: [deploy-landings, deploy-caddyfile, setup-pocketbase, deploy-migrations, deploy-kuzzle, deploy-monitoring]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for services to stabilize
+        run: sleep 10
+
+      - name: Smoke test all services
+        env:
+          DEPLOY_SHA: ${{ github.sha }}
+        run: |
+          PASS=0
+          FAIL=0
+          WARN=0
+
+          check() {
+            local name="$1" url="$2" expect="${3:-200}"
+            local code
+            code=$(curl -sf -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2>/dev/null || echo "000")
+            if [ "$code" = "$expect" ]; then
+              echo "✅ $name — HTTP $code"
+              PASS=$((PASS + 1))
+            elif [ "$code" = "000" ]; then
+              echo "⚠️  $name — unreachable (DNS or service down)"
+              WARN=$((WARN + 1))
+            else
+              echo "❌ $name — HTTP $code (expected $expect)"
+              FAIL=$((FAIL + 1))
+            fi
+          }
+
+          check_version() {
+            local name="$1" url="$2"
+            local sha
+            sha=$(curl -sf --max-time 10 "$url" 2>/dev/null | grep -o '"sha":"[^"]*"' | head -1 | cut -d'"' -f4)
+            if [ "$sha" = "$DEPLOY_SHA" ]; then
+              echo "✅ $name — version matches ($sha)"
+              PASS=$((PASS + 1))
+            elif [ -n "$sha" ]; then
+              echo "⚠️  $name — stale version (got ${sha:0:7}, expected ${DEPLOY_SHA:0:7})"
+              WARN=$((WARN + 1))
+            else
+              echo "⚠️  $name — no version.json"
+              WARN=$((WARN + 1))
+            fi
+          }
+
+          echo "═══════════════════════════════════════"
+          echo "  Post-Deploy Smoke Test"
+          echo "  Commit: ${DEPLOY_SHA:0:7}"
+          echo "═══════════════════════════════════════"
+          echo ""
+
+          echo "── Landing Pages ──"
+          check "obyw.one"  "https://obyw.one"
+          check "maya.fit"  "https://maya.fit"
+          check_version "obyw.one version" "https://obyw.one/version.json"
+          check_version "maya.fit version" "https://maya.fit/version.json"
+          echo ""
+
+          echo "── APIs ──"
+          check "back.obyw.one (PocketBase)" "https://back.obyw.one/api/health"
+          check "wabisabi.obyw.one (PocketBase)" "https://wabisabi.obyw.one/api/health"
+          check "api.maya.fit (Kuzzle)" "https://api.maya.fit/_healthCheck"
+          echo ""
+
+          echo "── Infrastructure ──"
+          check "status.obyw.one (Uptime Kuma)" "https://status.obyw.one"
+          check "ntfy.obyw.one" "https://ntfy.obyw.one"
+          check "umami.obyw.one" "https://umami.obyw.one"
+          echo ""
+
+          echo "═══════════════════════════════════════"
+          echo "  Results: ✅ $PASS passed, ❌ $FAIL failed, ⚠️  $WARN warnings"
+          echo "═══════════════════════════════════════"
+
+          if [ "$FAIL" -gt 0 ]; then
+            echo "::error::$FAIL service(s) failed health check"
+            exit 1
+          fi

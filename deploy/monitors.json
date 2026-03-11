@@ -1,59 +1,118 @@
 {
+  "_doc": "Uptime Kuma monitor setup guide — create these manually in the UI at https://status.obyw.one",
+
   "monitors": [
     {
-      "name": "maya.fit (landing)",
-      "type": "http",
+      "name": "obyw.one",
+      "group": "Landing Pages",
+      "type": "HTTP(s)",
+      "url": "https://obyw.one",
+      "interval": 60,
+      "notes": "Main agency landing page"
+    },
+    {
+      "name": "maya.fit",
+      "group": "Landing Pages",
+      "type": "HTTP(s)",
       "url": "https://maya.fit",
       "interval": 60,
-      "maxretries": 3
+      "notes": "Maya.fit running app landing page"
     },
     {
-      "name": "back.obyw.one (PocketBase prod)",
-      "type": "http",
+      "name": "obyw.one version",
+      "group": "Version Tracking",
+      "type": "HTTP(s) - JSON Query",
+      "url": "https://obyw.one/version.json",
+      "interval": 300,
+      "json_path": "sha",
+      "expected_value": "",
+      "notes": "Checks deploy version is present. Value changes on each deploy — use 'Response includes' with recent SHA to verify specific deploy."
+    },
+    {
+      "name": "maya.fit version",
+      "group": "Version Tracking",
+      "type": "HTTP(s) - JSON Query",
+      "url": "https://maya.fit/version.json",
+      "interval": 300,
+      "json_path": "sha",
+      "expected_value": "",
+      "notes": "Same as above for maya.fit"
+    },
+    {
+      "name": "PocketBase (OBYW prod)",
+      "group": "Backends",
+      "type": "HTTP(s)",
       "url": "https://back.obyw.one/api/health",
       "interval": 60,
-      "maxretries": 3
+      "notes": "Shared PocketBase — waitlist, community, feedback"
     },
     {
-      "name": "wabisabi.obyw.one (PocketBase prod)",
-      "type": "http",
+      "name": "PocketBase (WabiSabi prod)",
+      "group": "Backends",
+      "type": "HTTP(s)",
       "url": "https://wabisabi.obyw.one/api/health",
       "interval": 60,
-      "maxretries": 3
+      "notes": "WabiSabi app backend"
+    },
+    {
+      "name": "PocketBase (WabiSabi preprod)",
+      "group": "Backends",
+      "type": "HTTP(s)",
+      "url": "https://wabisabi-preprod.obyw.one/api/health",
+      "interval": 120,
+      "notes": "WabiSabi preprod — may be down if not actively testing"
+    },
+    {
+      "name": "Kuzzle (Maya API)",
+      "group": "Backends",
+      "type": "HTTP(s) - JSON Query",
+      "url": "https://api.maya.fit/_healthCheck",
+      "interval": 60,
+      "json_path": "status",
+      "expected_value": "200",
+      "notes": "Kuzzle health check returns {status: 200} when healthy"
+    },
+    {
+      "name": "Caddy (reverse proxy)",
+      "group": "Infrastructure",
+      "type": "HTTP(s) - Keyword",
+      "url": "https://obyw.one",
+      "interval": 60,
+      "keyword": "obyw",
+      "notes": "Verifies Caddy is serving content, not just returning 200"
+    },
+    {
+      "name": "Uptime Kuma",
+      "group": "Infrastructure",
+      "type": "HTTP(s)",
+      "url": "https://status.obyw.one",
+      "interval": 120,
+      "notes": "Self-monitoring"
+    },
+    {
+      "name": "ntfy",
+      "group": "Infrastructure",
+      "type": "HTTP(s)",
+      "url": "https://ntfy.obyw.one/v1/health",
+      "interval": 120,
+      "notes": "Push notification service"
     },
     {
       "name": "Umami",
-      "type": "http",
+      "group": "Infrastructure",
+      "type": "HTTP(s)",
       "url": "https://umami.obyw.one",
       "interval": 120,
-      "maxretries": 2
-    },
-    {
-      "name": "Caddy",
-      "type": "http",
-      "url": "https://obyw.one",
-      "interval": 60,
-      "maxretries": 3
-    },
-    {
-      "name": "Shiki (if installed)",
-      "type": "http",
-      "url": "http://localhost:3900/health",
-      "interval": 120,
-      "maxretries": 2
+      "notes": "Analytics dashboard"
     }
   ],
-  "notification_channels": [
-    {
-      "name": "ntfy",
-      "type": "ntfy",
-      "note": "Configure in Uptime Kuma UI: Settings > Notifications > ntfy"
-    }
-  ],
-  "status_page": {
-    "slug": "status",
-    "title": "OBYW Status",
-    "description": "Service status for obyw.one and related services",
-    "note": "Create in Uptime Kuma UI: Status Pages > New, then add all monitors above"
+
+  "setup_guide": {
+    "step_1": "Open https://status.obyw.one and create admin account",
+    "step_2": "For each monitor above: click + Add New Monitor, fill in type/url/interval",
+    "step_3": "Create groups: Landing Pages, Backends, Infrastructure, Version Tracking",
+    "step_4": "Create Status Page: slug 'status', title 'OBYW Status', add all monitors",
+    "step_5": "Add notification: Settings > Notifications > ntfy, topic: obyw-status, server: https://ntfy.obyw.one",
+    "step_6": "Subscribe to 'obyw-status' topic in ntfy app on iPhone for downtime alerts"
   }
 }
