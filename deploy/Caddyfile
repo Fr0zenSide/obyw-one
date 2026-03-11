@@ -18,17 +18,18 @@
 	}
 }
 
-(cors_api) {
-	@options method OPTIONS
-	handle @options {
-		header {
-			Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-			Access-Control-Allow-Headers "Content-Type, Authorization"
-			Access-Control-Max-Age "86400"
-		}
-		respond 204
-	}
+(cors_preflight) {
 	header {
+		Access-Control-Allow-Origin "{args[0]}"
+		Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
+		Access-Control-Max-Age "86400"
+	}
+}
+
+(cors_headers) {
+	header {
+		Access-Control-Allow-Origin "{args[0]}"
 		Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 		Access-Control-Allow-Headers "Content-Type, Authorization"
 	}
@@ -97,11 +98,16 @@ maya.fit {
 # Docker: docker compose -f docker-compose.kuzzle.yml up -d
 
 api.maya.fit {
-	reverse_proxy localhost:7512
-
 	import security_headers
-	import cors_api
-	header Access-Control-Allow-Origin "https://maya.fit"
+
+	@options method OPTIONS
+	handle @options {
+		import cors_preflight "https://maya.fit"
+		respond 204
+	}
+
+	import cors_headers "https://maya.fit"
+	reverse_proxy localhost:7512
 
 	import access_log api.maya.fit
 }
@@ -111,13 +117,23 @@ api.maya.fit {
 
 api.obyw.one {
 	import security_headers
-	import cors_api
 
-	@from_maya header Origin https://maya.fit
-	header @from_maya Access-Control-Allow-Origin "https://maya.fit"
+	@options method OPTIONS
+	handle @options {
+		header {
+			Access-Control-Allow-Origin "{header.Origin}"
+			Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+			Access-Control-Allow-Headers "Content-Type, Authorization"
+			Access-Control-Max-Age "86400"
+		}
+		respond 204
+	}
 
-	@from_obyw header Origin https://obyw.one
-	header @from_obyw Access-Control-Allow-Origin "https://obyw.one"
+	header {
+		Access-Control-Allow-Origin "{header.Origin}"
+		Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+		Access-Control-Allow-Headers "Content-Type, Authorization"
+	}
 
 	reverse_proxy localhost:8091
 
@@ -125,11 +141,16 @@ api.obyw.one {
 }
 
 preprod.obyw.one {
-	reverse_proxy localhost:8191
-
 	import security_headers
-	import cors_api
-	header Access-Control-Allow-Origin "https://preprod.obyw.one"
+
+	@options method OPTIONS
+	handle @options {
+		import cors_preflight "https://preprod.obyw.one"
+		respond 204
+	}
+
+	import cors_headers "https://preprod.obyw.one"
+	reverse_proxy localhost:8191
 
 	import access_log preprod.obyw.one
 }
@@ -139,21 +160,31 @@ preprod.obyw.one {
 # Migrated from wabisabi.app (domain too expensive) to obyw.one subdomains
 
 wabisabi.obyw.one {
-	reverse_proxy localhost:8090
-
 	import security_headers
-	import cors_api
-	header Access-Control-Allow-Origin "https://wabisabi.obyw.one"
+
+	@options method OPTIONS
+	handle @options {
+		import cors_preflight "https://wabisabi.obyw.one"
+		respond 204
+	}
+
+	import cors_headers "https://wabisabi.obyw.one"
+	reverse_proxy localhost:8090
 
 	import access_log wabisabi.obyw.one
 }
 
 wabisabi-preprod.obyw.one {
-	reverse_proxy localhost:8190
-
 	import security_headers
-	import cors_api
-	header Access-Control-Allow-Origin "https://wabisabi-preprod.obyw.one"
+
+	@options method OPTIONS
+	handle @options {
+		import cors_preflight "https://wabisabi-preprod.obyw.one"
+		respond 204
+	}
+
+	import cors_headers "https://wabisabi-preprod.obyw.one"
+	reverse_proxy localhost:8190
 
 	import access_log wabisabi-preprod.obyw.one
 }
