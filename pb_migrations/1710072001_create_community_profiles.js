@@ -46,9 +46,12 @@ migrate((app) => {
     maxSize: 5000,
   }))
 
-  collection.indexes = ["CREATE UNIQUE INDEX idx_cp_user ON community_profiles (user)"]
+  // Save collection first, then add index
+  app.save(collection)
 
-  return app.save(collection)
+  const saved = app.findCollectionByNameOrId("community_profiles")
+  saved.indexes = ["CREATE UNIQUE INDEX idx_cp_user ON community_profiles (user)"]
+  return app.save(saved)
 }, (app) => {
   const collection = app.findCollectionByNameOrId("community_profiles")
   return app.delete(collection)

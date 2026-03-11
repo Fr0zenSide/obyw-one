@@ -32,9 +32,13 @@ migrate((app) => {
     required: false,
   }))
 
-  collection.indexes = ["CREATE UNIQUE INDEX idx_waitlist_email ON waitlist (email)"]
+  // Save collection first, then add index
+  app.save(collection)
 
-  return app.save(collection)
+  // Reload and add index
+  const saved = app.findCollectionByNameOrId("waitlist")
+  saved.indexes = ["CREATE UNIQUE INDEX idx_waitlist_email ON waitlist (email)"]
+  return app.save(saved)
 }, (app) => {
   const collection = app.findCollectionByNameOrId("waitlist")
   return app.delete(collection)
