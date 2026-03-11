@@ -1,56 +1,21 @@
 migrate((app) => {
-  const collection = new BaseCollection()
-  collection.name = "feedback"
-  collection.type = "base"
-  collection.createRule = ""
-  collection.listRule = null
-  collection.viewRule = null
-  collection.updateRule = null
-  collection.deleteRule = null
-
-  collection.fields.add(new RelationField({
-    name: "user",
-    required: false,
-    collectionId: "_pb_users_auth_",
-    cascadeDelete: false,
-    maxSelect: 1,
-  }))
-
-  collection.fields.add(new TextField({
-    name: "app",
-    required: true,
-    min: 1,
-    max: 50,
-  }))
-
-  collection.fields.add(new SelectField({
-    name: "type",
-    required: true,
-    maxSelect: 1,
-    values: ["bug", "feature", "general"],
-  }))
-
-  collection.fields.add(new TextField({
-    name: "message",
-    required: true,
-    min: 10,
-  }))
-
-  collection.fields.add(new FileField({
-    name: "screenshot",
-    required: false,
-    maxSelect: 1,
-    maxSize: 10485760,
-    mimeTypes: ["image/jpeg", "image/png", "image/webp"],
-  }))
-
-  collection.fields.add(new SelectField({
-    name: "status",
-    required: true,
-    maxSelect: 1,
-    values: ["new", "reviewed", "resolved"],
-  }))
-
+  const collection = new Collection({
+    name: "feedback",
+    type: "base",
+    fields: [
+      { name: "user", type: "relation", required: false, collectionId: "_pb_users_auth_", cascadeDelete: false, maxSelect: 1 },
+      { name: "app", type: "text", required: true, min: 1, max: 50 },
+      { name: "type", type: "select", required: true, maxSelect: 1, values: ["bug", "feature", "general"] },
+      { name: "message", type: "text", required: true, min: 10 },
+      { name: "screenshot", type: "file", required: false, maxSelect: 1, maxSize: 10485760, mimeTypes: ["image/jpeg", "image/png", "image/webp"] },
+      { name: "status", type: "select", required: true, maxSelect: 1, values: ["new", "reviewed", "resolved"] },
+    ],
+    createRule: "",
+    listRule: null,
+    viewRule: null,
+    updateRule: null,
+    deleteRule: null,
+  })
   return app.save(collection)
 }, (app) => {
   const collection = app.findCollectionByNameOrId("feedback")
