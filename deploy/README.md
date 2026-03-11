@@ -63,6 +63,7 @@ All domains point to VPS (`92.134.242.73`). Caddy provisions HTTPS automatically
 | `www.maya.fit` | CNAME | `maya.fit.` | → redirect to root |
 | `api.maya.fit` | A | `92.134.242.73` | Kuzzle backend |
 | `api.obyw.one` | A | `92.134.242.73` | PocketBase (OBYW) |
+| `preprod.obyw.one` | A | `92.134.242.73` | PocketBase (OBYW preprod) |
 | `wabisabi.obyw.one` | A | `92.134.242.73` | PocketBase (WabiSabi) |
 | `wabisabi-preprod.obyw.one` | A | `92.134.242.73` | PocketBase (WabiSabi preprod) |
 | `status.obyw.one` | A | `92.134.242.73` | Uptime Kuma |
@@ -356,6 +357,7 @@ update "obyw.one-Admin"   '<password>' "status.obyw.one"
 update "obyw.one-Admin"   '<password>' "wabisabi.obyw.one"
 update "obyw.one-Admin"   '<password>' "wabisabi-preprod.obyw.one"
 update "obyw.one-Admin"   '<password>' "ntfy.obyw.one"
+update "obyw.one-Admin"   '<password>' "preprod.obyw.one"
 
 # ─── maya.fit ───
 update "maya.fit-Admin"   '<password>' "maya.fit"

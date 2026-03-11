@@ -124,6 +124,16 @@ api.obyw.one {
 	import access_log api.obyw.one
 }
 
+preprod.obyw.one {
+	reverse_proxy localhost:8191
+
+	import security_headers
+	import cors_api
+	header Access-Control-Allow-Origin "https://preprod.obyw.one"
+
+	import access_log preprod.obyw.one
+}
+
 # ─── WabiSabi API (PocketBase) ──────────────────────────────
 # Native: systemctl start pocketbase@wabisabi-prod
 # Migrated from wabisabi.app (domain too expensive) to obyw.one subdomains
