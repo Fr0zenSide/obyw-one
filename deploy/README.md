@@ -36,7 +36,7 @@ No GitHub Pages — everything served directly by Caddy on the VPS.
 | **Caddy** | Native | 80, 443 | — | Reverse proxy + TLS |
 | **Landing pages** | Static | — | `obyw.one`, `maya.fit`, etc. | Served by Caddy from `/srv/www/<domain>/` |
 | **Kuzzle** (Maya API) | Docker | 7512 | `api.maya.fit` | ES + Redis + Kuzzle |
-| **PocketBase** (OBYW) | Native | 8091 / 8191 | `api.obyw.one` | Shared: waitlist, community, feedback |
+| **PocketBase** (OBYW) | Native | 8091 | `api.obyw.one` | Shared: waitlist, community, feedback (prod only) |
 | **PocketBase** (WabiSabi) | Native | 8090 / 8190 | `wabisabi.obyw.one` | Per-project instance |
 | **Umami** | Docker | 3000 | `umami.obyw.one` | Analytics |
 | **Uptime Kuma** | Docker | 3001 | `status.obyw.one` | Status page |
@@ -63,7 +63,6 @@ All domains point to VPS (`92.134.242.73`). Caddy provisions HTTPS automatically
 | `www.maya.fit` | CNAME | `maya.fit.` | → redirect to root |
 | `api.maya.fit` | A | `92.134.242.73` | Kuzzle backend |
 | `api.obyw.one` | A | `92.134.242.73` | PocketBase (OBYW) |
-| `preprod.obyw.one` | A | `92.134.242.73` | PocketBase (OBYW preprod) |
 | `wabisabi.obyw.one` | A | `92.134.242.73` | PocketBase (WabiSabi) |
 | `wabisabi-preprod.obyw.one` | A | `92.134.242.73` | PocketBase (WabiSabi preprod) |
 | `status.obyw.one` | A | `92.134.242.73` | Uptime Kuma |
@@ -357,7 +356,6 @@ update "obyw.one-Admin"   '<password>' "status.obyw.one"
 update "obyw.one-Admin"   '<password>' "wabisabi.obyw.one"
 update "obyw.one-Admin"   '<password>' "wabisabi-preprod.obyw.one"
 update "obyw.one-Admin"   '<password>' "ntfy.obyw.one"
-update "obyw.one-Admin"   '<password>' "preprod.obyw.one"
 
 # ─── maya.fit ───
 update "maya.fit-Admin"   '<password>' "maya.fit"

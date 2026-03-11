@@ -243,17 +243,11 @@ bootstrap_all() {
     echo "wabisabi/preprod already exists, skipping"
   fi
 
-  # OBYW
+  # OBYW (prod only — no preprod, shared backend across all apps)
   if [ ! -d "$BASE_DIR/instances/obyw/prod/pb_data" ]; then
     add_instance "$0" "obyw" "prod" "8091"
   else
     echo "obyw/prod already exists, skipping"
-  fi
-
-  if [ ! -d "$BASE_DIR/instances/obyw/preprod/pb_data" ]; then
-    add_instance "$0" "obyw" "preprod" "8191"
-  else
-    echo "obyw/preprod already exists, skipping"
   fi
 
   echo ""
