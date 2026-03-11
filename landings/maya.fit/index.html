@@ -1177,7 +1177,8 @@ if (waitlistForm) waitlistForm.addEventListener('submit', async function(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email: email,
-        source: 'maya'
+        source: 'maya.fit',
+        status: 'pending'
       })
     });
 
