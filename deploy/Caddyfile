@@ -146,6 +146,18 @@ wabisabi-preprod.obyw.one {
 	import access_log wabisabi-preprod.obyw.one
 }
 
+# ─── Garage S3 (media storage) ───────────────────────────────
+# Native: systemctl start garage
+# Buckets: maya-photos, wabisabi-photos
+
+s3.obyw.one {
+	import security_headers
+
+	reverse_proxy localhost:3902
+
+	import access_log s3.obyw.one
+}
+
 # ─── Uptime Kuma (status page) ──────────────────────────────
 # Docker: docker compose -f docker-compose.monitoring.yml up -d
 
