@@ -1,0 +1,29 @@
+# Garage S3 v2.2.0 — Production Configuration
+# VPS: 92.134.242.73 (obyw.one)
+# Single-node, native binary, systemd service
+#
+# Docs: https://garagehq.deuxfleurs.fr/documentation/reference-manual/configuration/
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir     = "/var/lib/garage/data"
+db_engine    = "sqlite"
+
+replication_factor = 1
+consistency_mode   = "consistent"
+
+rpc_bind_addr = "127.0.0.1:3901"
+rpc_secret    = "eff3206ca60bbffa6f6c02e513a892fd2567d617124b74d143ad646311d2d86e"
+
+[s3_api]
+api_bind_addr = "127.0.0.1:3902"
+s3_region     = "garage"
+root_domain   = ".s3.obyw.one"
+
+[s3_web]
+bind_addr     = "127.0.0.1:3904"
+root_domain   = ".web.obyw.one"
+
+[admin]
+api_bind_addr  = "127.0.0.1:3903"
+admin_token    = "qWDRiuT0Vw8kRiN6grZ8gvMgad2mgsYM/bVWeqL7f4s="
+metrics_token  = "6DEkAaafRIYOX+NM5KciSxcE63/YU8Gq6YywtMnUj0A="

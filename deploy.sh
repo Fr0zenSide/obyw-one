@@ -221,13 +221,16 @@ deploy_kuzzle() {
 }
 
 # ── Deploy: Garage S3 ──────────────────────────────────────
-GARAGE_VERSION="v1.0.1"
+GARAGE_VERSION="v2.2.0"
 GARAGE_BIN="/usr/local/bin/garage"
 GARAGE_DATA="/var/lib/garage"
 GARAGE_CONFIG="/etc/garage.toml"
 
 deploy_garage() {
-  step "Deploy Garage S3"
+  step "Deploy Garage S3 (${GARAGE_VERSION})"
+
+  # Ensure garage user exists (before binary install)
+  $SSH_CMD "id -u garage &>/dev/null || sudo useradd -r -s /usr/sbin/nologin garage"
 
   # Install binary if missing or wrong version
   $SSH_CMD "if ! ${GARAGE_BIN} --version 2>/dev/null | grep -q '${GARAGE_VERSION}'; then
@@ -237,22 +240,23 @@ deploy_garage() {
     sudo install -m 755 /tmp/garage ${GARAGE_BIN} && \
     rm /tmp/garage
   fi"
-  log "Garage binary ready"
+  log "Garage binary: ${GARAGE_VERSION}"
 
   # Deploy config
   scp "$SCRIPT_DIR/deploy/garage-prod.toml" \
     "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/garage.toml.new"
-  $SSH_CMD "sudo mv /tmp/garage.toml.new ${GARAGE_CONFIG}"
+  $SSH_CMD "sudo mv /tmp/garage.toml.new ${GARAGE_CONFIG} && \
+    sudo chown root:garage ${GARAGE_CONFIG} && \
+    sudo chmod 640 ${GARAGE_CONFIG}"
 
   # Create data dirs
   $SSH_CMD "sudo mkdir -p ${GARAGE_DATA}/{data,meta} && \
     sudo chown -R garage:garage ${GARAGE_DATA}"
 
-  # Create systemd service if missing
-  $SSH_CMD "if [ ! -f /etc/systemd/system/garage.service ]; then
-    sudo tee /etc/systemd/system/garage.service > /dev/null <<UNIT
+  # Create systemd service (always update to match current version)
+  $SSH_CMD "sudo tee /etc/systemd/system/garage.service > /dev/null <<UNIT
 [Unit]
-Description=Garage S3-compatible object storage
+Description=Garage S3-compatible object storage (${GARAGE_VERSION})
 After=network-online.target
 Wants=network-online.target
 
@@ -264,23 +268,21 @@ ExecStart=${GARAGE_BIN} server
 Restart=always
 RestartSec=5
 LimitNOFILE=65536
+ProtectSystem=strict
+ReadWritePaths=${GARAGE_DATA}
 
 [Install]
 WantedBy=multi-user.target
 UNIT
     sudo systemctl daemon-reload
-    sudo systemctl enable garage
-  fi"
-
-  # Ensure garage user exists
-  $SSH_CMD "id -u garage &>/dev/null || sudo useradd -r -s /usr/sbin/nologin garage"
+    sudo systemctl enable garage"
 
   # Start / restart
   $SSH_CMD "sudo systemctl restart garage"
   sleep 3
 
-  # Health check
-  if $SSH_CMD "curl -sf http://localhost:3903/health" &>/dev/null; then
+  # Health check via garage CLI (no curl dependency)
+  if $SSH_CMD "${GARAGE_BIN} status" &>/dev/null; then
     log "Garage healthy"
   else
     err "Garage health check failed. Check: journalctl -u garage -n 20"
@@ -289,11 +291,14 @@ UNIT
 
   # Layout: assign single node
   local node_id
-  node_id=$($SSH_CMD "${GARAGE_BIN} status 2>/dev/null | grep -oP '^[a-f0-9]+' | head -1")
+  node_id=$($SSH_CMD "${GARAGE_BIN} status 2>/dev/null | grep -Eo '^[a-f0-9]+' | head -1")
   if [ -n "$node_id" ]; then
-    $SSH_CMD "${GARAGE_BIN} layout assign ${node_id} -z dc1 -c 1G -t prod" 2>/dev/null || true
-    $SSH_CMD "${GARAGE_BIN} layout apply --version 1" 2>/dev/null || true
-    log "Layout applied for node ${node_id:0:8}..."
+    $SSH_CMD "${GARAGE_BIN} layout assign ${node_id} -z dc1 -c 50G -t prod" 2>/dev/null || true
+    # Get next layout version
+    local layout_ver
+    layout_ver=$($SSH_CMD "${GARAGE_BIN} layout show 2>/dev/null | grep -Eo 'version [0-9]+' | grep -Eo '[0-9]+' | tail -1" || echo "1")
+    $SSH_CMD "${GARAGE_BIN} layout apply --version ${layout_ver}" 2>/dev/null || true
+    log "Layout applied for node ${node_id:0:8}... (50G capacity)"
   else
     warn "Could not determine node ID. Run 'garage status' on VPS."
   fi
@@ -309,9 +314,8 @@ UNIT
   existing_key=$($SSH_CMD "${GARAGE_BIN} key list 2>/dev/null | grep pocketbase" || true)
   if [ -z "$existing_key" ]; then
     $SSH_CMD "${GARAGE_BIN} key create pocketbase-media"
-    # Grant read/write on both buckets
     for bucket in maya-photos wabisabi-photos; do
-      $SSH_CMD "${GARAGE_BIN} bucket allow --read --write --key pocketbase-media ${bucket}"
+      $SSH_CMD "${GARAGE_BIN} bucket allow --read --write --owner --key pocketbase-media ${bucket}"
     done
     log "API key 'pocketbase-media' created with bucket access"
     warn "Save the key output above — it won't be shown again."
@@ -363,7 +367,12 @@ do_status() {
   check_url "PB obyw      " "http://localhost:$(pb_port obyw)/api/health"
   check_url "PB wabisabi  " "http://localhost:$(pb_port wabisabi)/api/health"
   check_url "Uptime Kuma  " "http://localhost:3001"
-  check_url "Garage S3    " "http://localhost:3903/health"
+  # Garage uses CLI check (no curl in minimal install)
+  if $SSH_CMD "${GARAGE_BIN:-/usr/local/bin/garage} status" &>/dev/null 2>&1; then
+    echo -e "  Garage S3    : ${GREEN}healthy${NC}"
+  else
+    echo -e "  Garage S3    : ${RED}down${NC}"
+  fi
   check_url "Umami        " "http://localhost:3000"
   echo ""
 }
