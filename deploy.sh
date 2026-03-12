@@ -12,6 +12,7 @@
 #   ./deploy.sh migrations obyw        Deploy PB migrations + restart
 #   ./deploy.sh caddy                  Validate + deploy Caddyfile + reload
 #   ./deploy.sh kuzzle                 Deploy Kuzzle compose + restart
+#   ./deploy.sh garage                  Deploy Garage S3 + create buckets
 #   ./deploy.sh all                    Deploy everything
 #   ./deploy.sh backup                 Create backup only (no deploy)
 #   ./deploy.sh status                 Health check all services
@@ -219,6 +220,108 @@ deploy_kuzzle() {
   fi
 }
 
+# ── Deploy: Garage S3 ──────────────────────────────────────
+GARAGE_VERSION="v1.0.1"
+GARAGE_BIN="/usr/local/bin/garage"
+GARAGE_DATA="/var/lib/garage"
+GARAGE_CONFIG="/etc/garage.toml"
+
+deploy_garage() {
+  step "Deploy Garage S3"
+
+  # Install binary if missing or wrong version
+  $SSH_CMD "if ! ${GARAGE_BIN} --version 2>/dev/null | grep -q '${GARAGE_VERSION}'; then
+    echo 'Installing Garage ${GARAGE_VERSION}...'
+    curl -sfL https://garagehq.deuxfleurs.fr/_releases/${GARAGE_VERSION}/x86_64-unknown-linux-musl/garage \
+      -o /tmp/garage && \
+    sudo install -m 755 /tmp/garage ${GARAGE_BIN} && \
+    rm /tmp/garage
+  fi"
+  log "Garage binary ready"
+
+  # Deploy config
+  scp "$SCRIPT_DIR/deploy/garage-prod.toml" \
+    "${DEPLOY_USER}@${DEPLOY_HOST}:/tmp/garage.toml.new"
+  $SSH_CMD "sudo mv /tmp/garage.toml.new ${GARAGE_CONFIG}"
+
+  # Create data dirs
+  $SSH_CMD "sudo mkdir -p ${GARAGE_DATA}/{data,meta} && \
+    sudo chown -R garage:garage ${GARAGE_DATA}"
+
+  # Create systemd service if missing
+  $SSH_CMD "if [ ! -f /etc/systemd/system/garage.service ]; then
+    sudo tee /etc/systemd/system/garage.service > /dev/null <<UNIT
+[Unit]
+Description=Garage S3-compatible object storage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=garage
+Group=garage
+ExecStart=${GARAGE_BIN} server
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    sudo systemctl daemon-reload
+    sudo systemctl enable garage
+  fi"
+
+  # Ensure garage user exists
+  $SSH_CMD "id -u garage &>/dev/null || sudo useradd -r -s /usr/sbin/nologin garage"
+
+  # Start / restart
+  $SSH_CMD "sudo systemctl restart garage"
+  sleep 3
+
+  # Health check
+  if $SSH_CMD "curl -sf http://localhost:3903/health" &>/dev/null; then
+    log "Garage healthy"
+  else
+    err "Garage health check failed. Check: journalctl -u garage -n 20"
+    return 1
+  fi
+
+  # Layout: assign single node
+  local node_id
+  node_id=$($SSH_CMD "${GARAGE_BIN} status 2>/dev/null | grep -oP '^[a-f0-9]+' | head -1")
+  if [ -n "$node_id" ]; then
+    $SSH_CMD "${GARAGE_BIN} layout assign ${node_id} -z dc1 -c 1G -t prod" 2>/dev/null || true
+    $SSH_CMD "${GARAGE_BIN} layout apply --version 1" 2>/dev/null || true
+    log "Layout applied for node ${node_id:0:8}..."
+  else
+    warn "Could not determine node ID. Run 'garage status' on VPS."
+  fi
+
+  # Create buckets (idempotent)
+  for bucket in maya-photos wabisabi-photos; do
+    $SSH_CMD "${GARAGE_BIN} bucket create ${bucket}" 2>/dev/null || true
+    log "Bucket: ${bucket}"
+  done
+
+  # Create API key for PocketBase
+  local existing_key
+  existing_key=$($SSH_CMD "${GARAGE_BIN} key list 2>/dev/null | grep pocketbase" || true)
+  if [ -z "$existing_key" ]; then
+    $SSH_CMD "${GARAGE_BIN} key create pocketbase-media"
+    # Grant read/write on both buckets
+    for bucket in maya-photos wabisabi-photos; do
+      $SSH_CMD "${GARAGE_BIN} bucket allow --read --write --key pocketbase-media ${bucket}"
+    done
+    log "API key 'pocketbase-media' created with bucket access"
+    warn "Save the key output above — it won't be shown again."
+  else
+    log "API key 'pocketbase-media' already exists"
+  fi
+
+  log "Garage S3 deployment complete"
+}
+
 # ── Deploy: Everything ───────────────────────────────────────
 deploy_all() {
   step "Full deploy (${DEPLOY_ENV})"
@@ -228,6 +331,7 @@ deploy_all() {
   deploy_caddy
   deploy_migrations "" "obyw"
   deploy_kuzzle
+  deploy_garage
 
   echo ""
   log "Full deploy complete."
@@ -259,6 +363,7 @@ do_status() {
   check_url "PB obyw      " "http://localhost:$(pb_port obyw)/api/health"
   check_url "PB wabisabi  " "http://localhost:$(pb_port wabisabi)/api/health"
   check_url "Uptime Kuma  " "http://localhost:3001"
+  check_url "Garage S3    " "http://localhost:3903/health"
   check_url "Umami        " "http://localhost:3000"
   echo ""
 }
@@ -310,13 +415,14 @@ case "$ACTION" in
   landing)    deploy_landing "$@" ;;
   migrations) deploy_migrations "$@" ;;
   caddy)      deploy_caddy ;;
+  garage)     deploy_garage ;;
   kuzzle)     deploy_kuzzle ;;
   all)        deploy_all ;;
   backup)     backup_all ;;
   status)     do_status ;;
   rollback)   rollback "$@" ;;
   *)
-    echo "Usage: $0 {landing <domain|all>|migrations <project>|caddy|kuzzle|all|backup|status|rollback <project>}"
+    echo "Usage: $0 {landing <domain|all>|migrations <project>|caddy|garage|kuzzle|all|backup|status|rollback <project>}"
     echo ""
     echo "Environment variables:"
     echo "  DEPLOY_HOST   Server hostname/IP"
