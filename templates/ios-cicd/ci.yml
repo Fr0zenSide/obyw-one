@@ -1,0 +1,190 @@
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  iOS CI — Build & Test                                      ║
+# ║  Source of truth: obyw-one/templates/ios-cicd/ci.yml         ║
+# ║  Last updated: 2026-03-12                                    ║
+# ╚══════════════════════════════════════════════════════════════╝
+#
+# Copy to: .github/workflows/ci.yml
+#
+# Required customization (search for TODO):
+#   1. PROJECT_TYPE: "xcodeproj" or "spm"
+#   2. SCHEME / PROJECT_NAME: your Xcode scheme or SPM package name
+#   3. Branch names: adjust to your git flow
+#   4. Multi-repo checkout: enable if you use shared SPM packages
+#   5. Test targets: adjust -only-testing filter
+#
+# Variants:
+#   - Xcode project (Maya, WabiSabi): uses xcodebuild
+#   - SPM package (Flsh, fzf, swiftui-qc, kintsugi-ds): uses swift test
+#   - Hybrid: runs both jobs
+
+name: CI — Build & Test
+
+on:
+  pull_request:
+    branches: [develop]              # TODO: adjust target branches
+  push:
+    branches: [develop]              # TODO: adjust push branches
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # ── Project Config (TODO: customize these) ──
+  XCODE_VERSION: "16.2"
+  SCHEME: "Maya"                     # TODO: your Xcode scheme name
+  PROJECT_FILE: "MayaFit.xcodeproj"  # TODO: your .xcodeproj file
+  SIMULATOR: "iPhone 16"
+  IOS_VERSION: "18.2"
+  TEST_TARGET: "MayaFitTests"        # TODO: your test target name
+
+  # ── Multi-repo checkout (if using shared SPM packages) ──
+  # Set NEEDS_MONOREPO_CHECKOUT=true if Package.swift has relative path deps
+  NEEDS_MONOREPO_CHECKOUT: "true"    # TODO: "true" or "false"
+
+jobs:
+
+  # ══════════════════════════════════════════════════════════════
+  # SPM Package Tests
+  # Remove this job if your project is Xcode-only (no Package.swift)
+  # ══════════════════════════════════════════════════════════════
+  spm-tests:
+    name: SPM Package Tests
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      # ── Checkout: monorepo layout (shared packages) ──
+      # Use this block if NEEDS_MONOREPO_CHECKOUT=true
+      # It recreates: monorepo/packages/{CoreKit,NetworkKit,SecurityKit}
+      #               monorepo/projects/kintsugi-ds/
+      #               monorepo/projects/<your-project>/
+      - name: Checkout Shiki packages (sparse)
+        if: env.NEEDS_MONOREPO_CHECKOUT == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: Fr0zenSide/shiki
+          token: ${{ secrets.PACKAGES_TOKEN }}
+          sparse-checkout: |
+            packages/CoreKit
+            packages/NetworkKit
+            packages/SecurityKit
+          sparse-checkout-cone-mode: true
+          path: monorepo
+
+      - name: Checkout project
+        if: env.NEEDS_MONOREPO_CHECKOUT == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: monorepo/projects/maya      # TODO: adjust subpath
+
+      - name: Checkout Kintsugi DS
+        if: env.NEEDS_MONOREPO_CHECKOUT == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: Fr0zenSide/kintsugi-ds
+          token: ${{ secrets.PACKAGES_TOKEN }}
+          path: monorepo/projects/kintsugi-ds
+
+      # ── Checkout: simple (standalone project, no shared deps) ──
+      - name: Checkout
+        if: env.NEEDS_MONOREPO_CHECKOUT != 'true'
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Run SPM tests
+        working-directory: ${{ env.NEEDS_MONOREPO_CHECKOUT == 'true' && 'monorepo/projects/maya' || '.' }}
+        run: swift test --parallel 2>&1 | xcpretty
+
+  # ══════════════════════════════════════════════════════════════
+  # iOS App Build & Test
+  # Remove this job if your project is SPM-only (no .xcodeproj)
+  # ══════════════════════════════════════════════════════════════
+  build-test:
+    name: Build & Test iOS App
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      # ── Checkout (same pattern as above) ──
+      - name: Checkout Shiki packages (sparse)
+        if: env.NEEDS_MONOREPO_CHECKOUT == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: Fr0zenSide/shiki
+          token: ${{ secrets.PACKAGES_TOKEN }}
+          sparse-checkout: |
+            packages/CoreKit
+            packages/NetworkKit
+            packages/SecurityKit
+          sparse-checkout-cone-mode: true
+          path: monorepo
+
+      - name: Checkout project
+        if: env.NEEDS_MONOREPO_CHECKOUT == 'true'
+        uses: actions/checkout@v4
+        with:
+          path: monorepo/projects/maya      # TODO: adjust subpath
+
+      - name: Checkout Kintsugi DS
+        if: env.NEEDS_MONOREPO_CHECKOUT == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: Fr0zenSide/kintsugi-ds
+          token: ${{ secrets.PACKAGES_TOKEN }}
+          path: monorepo/projects/kintsugi-ds
+
+      - name: Checkout
+        if: env.NEEDS_MONOREPO_CHECKOUT != 'true'
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      # ── Cache (optional but recommended) ──
+      - name: Cache SPM packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/spm-cache
+          key: spm-${{ runner.os }}-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Resolve SPM dependencies
+        working-directory: ${{ env.NEEDS_MONOREPO_CHECKOUT == 'true' && 'monorepo/projects/maya' || '.' }}
+        run: |
+          xcodebuild -project ${{ env.PROJECT_FILE }} \
+                     -scheme "${{ env.SCHEME }}" \
+                     -resolvePackageDependencies \
+                     -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm-cache"
+
+      - name: Build for testing
+        working-directory: ${{ env.NEEDS_MONOREPO_CHECKOUT == 'true' && 'monorepo/projects/maya' || '.' }}
+        run: |
+          xcodebuild build-for-testing \
+            -project ${{ env.PROJECT_FILE }} \
+            -scheme "${{ env.SCHEME }}" \
+            -destination "platform=iOS Simulator,name=${{ env.SIMULATOR }},OS=${{ env.IOS_VERSION }}" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm-cache" \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | xcpretty
+
+      - name: Run unit tests
+        working-directory: ${{ env.NEEDS_MONOREPO_CHECKOUT == 'true' && 'monorepo/projects/maya' || '.' }}
+        run: |
+          xcodebuild test-without-building \
+            -project ${{ env.PROJECT_FILE }} \
+            -scheme "${{ env.SCHEME }}" \
+            -destination "platform=iOS Simulator,name=${{ env.SIMULATOR }},OS=${{ env.IOS_VERSION }}" \
+            -clonedSourcePackagesDirPath "$RUNNER_TEMP/spm-cache" \
+            -resultBundlePath "$RUNNER_TEMP/test-result" \
+            -only-testing:${{ env.TEST_TARGET }} \
+            2>&1 | xcpretty --report junit --output "$RUNNER_TEMP/test-results.xml"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ${{ runner.temp }}/test-results.xml
+          retention-days: 14

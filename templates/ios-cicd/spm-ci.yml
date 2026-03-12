@@ -1,0 +1,66 @@
+# ╔══════════════════════════════════════════════════════════════╗
+# ║  SPM Package CI — Build & Test                              ║
+# ║  Source of truth: obyw-one/templates/ios-cicd/spm-ci.yml     ║
+# ║  Last updated: 2026-03-12                                    ║
+# ╚══════════════════════════════════════════════════════════════╝
+#
+# For pure SPM packages without an Xcode project:
+#   Flsh, fuzzy-swift (fzf), swiftui-qc, kintsugi-ds
+#
+# Copy to: .github/workflows/ci.yml
+
+name: CI — Build & Test
+
+on:
+  pull_request:
+    branches: [main, develop]        # TODO: adjust branches
+  push:
+    branches: [main, develop]        # TODO: adjust branches
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  XCODE_VERSION: "16.2"
+  SWIFT_VERSION: "6.0"               # TODO: match your Package.swift
+
+jobs:
+  test:
+    name: Swift Package Tests
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+
+      - name: Verify Swift version
+        run: swift --version
+
+      - name: Resolve dependencies
+        run: swift package resolve
+
+      - name: Build
+        run: swift build 2>&1 | xcpretty
+
+      - name: Test
+        run: swift test --parallel 2>&1 | xcpretty
+
+  # ── Optional: multi-platform build check ──
+  # Uncomment if your package supports multiple platforms
+  # build-ios:
+  #   name: Build for iOS
+  #   runs-on: macos-15
+  #   timeout-minutes: 15
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Select Xcode
+  #       run: sudo xcode-select -switch /Applications/Xcode_${{ env.XCODE_VERSION }}.app
+  #     - name: Build for iOS
+  #       run: |
+  #         xcodebuild build \
+  #           -scheme "YOUR_SCHEME" \
+  #           -destination "generic/platform=iOS Simulator" \
+  #           CODE_SIGNING_ALLOWED=NO
