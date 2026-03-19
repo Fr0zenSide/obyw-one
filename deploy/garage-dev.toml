@@ -1,0 +1,34 @@
+# Garage S3 v2 — Local Development Configuration
+# Single-node setup for docker compose dev stack
+#
+# Docs: https://garagehq.deuxfleurs.fr/documentation/reference-manual/configuration/
+
+metadata_dir = "/var/lib/garage/meta"
+data_dir     = "/var/lib/garage/data"
+db_engine    = "sqlite"
+
+replication_factor = 1
+consistency_mode   = "consistent"
+
+rpc_bind_addr = "0.0.0.0:3901"
+# Dummy value — overridden at runtime by --rpc-secret CLI flag.
+# Real secret loaded from deploy/.env via docker-compose.
+# Generate yours: openssl rand -hex 32
+rpc_secret    = "0000000000000000000000000000000000000000000000000000000000000000"
+
+[s3_api]
+api_bind_addr = "0.0.0.0:3902"
+s3_region     = "garage"
+root_domain   = ".s3.garage.localhost"
+
+[s3_web]
+bind_addr     = "0.0.0.0:3904"
+root_domain   = ".web.garage.localhost"
+
+[admin]
+api_bind_addr = "0.0.0.0:3903"
+# Dummy values — overridden at runtime by GARAGE_ADMIN_TOKEN and
+# GARAGE_METRICS_TOKEN env vars (Garage natively supports these overrides).
+# Real tokens loaded from deploy/.env via docker-compose.
+admin_token   = "dummy-admin-token"
+metrics_token = "dummy-metrics-token"

@@ -48,7 +48,6 @@
 
 obyw.one {
 	root * /srv/www/obyw.one
-	file_server
 	encode gzip zstd
 
 	import security_headers
@@ -61,6 +60,21 @@ obyw.one {
 	@assets path /css/* /js/* /assets/*
 	header @assets Cache-Control "public, max-age=86400, immutable"
 
+	# Block /_/ (PocketBase admin) — never expose on public domain
+	@pbadmin path /_/*
+	handle @pbadmin {
+		redir / 302
+	}
+
+	# Serve files, fallback unknown paths to index.html (SPA) or 404
+	file_server {
+		pass_thru
+	}
+	handle {
+		rewrite * /index.html
+		file_server
+	}
+
 	import access_log obyw.one
 }
 
@@ -72,6 +86,58 @@ www.obyw.one {
 
 www.maya.fit {
 	redir https://maya.fit{uri} permanent
+}
+
+www.shiki.sh {
+	redir https://shiki.sh{uri} permanent
+}
+
+www.flsh.sh {
+	redir https://flsh.sh{uri} permanent
+}
+
+getflsh.app, www.getflsh.app {
+	redir https://flsh.sh{uri} permanent
+}
+
+# ─── Flsh.sh Landing Page ───────────────────────────────────
+
+flsh.sh {
+	root * /srv/www/flsh.sh
+	file_server
+	encode gzip zstd
+
+	import security_headers
+
+	header {
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; script-src 'self' https://umami.obyw.one"
+		Cache-Control "public, max-age=3600"
+	}
+
+	@assets path /css/* /js/* /assets/*
+	header @assets Cache-Control "public, max-age=86400, immutable"
+
+	import access_log flsh.sh
+}
+
+# ─── Shiki.sh Landing Page ──────────────────────────────────
+
+shiki.sh {
+	root * /srv/www/shiki.sh
+	file_server
+	encode gzip zstd
+
+	import security_headers
+
+	header {
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; script-src 'self' https://umami.obyw.one"
+		Cache-Control "public, max-age=3600"
+	}
+
+	@assets path /css/* /js/* /assets/*
+	header @assets Cache-Control "public, max-age=86400, immutable"
+
+	import access_log shiki.sh
 }
 
 # ─── Maya.fit Landing Page ──────────────────────────────────
@@ -118,8 +184,27 @@ api.maya.fit {
 back.obyw.one {
 	import security_headers
 
-	# PocketBase handles CORS natively — don't duplicate headers
-	reverse_proxy localhost:8091
+	# Block public access to PocketBase admin UI
+	@admin path /_/*
+	handle @admin {
+		redir https://obyw.one 302
+	}
+
+	# Block root — redirect to obyw.one
+	@root path /
+	handle @root {
+		redir https://obyw.one 302
+	}
+
+	# API routes only — PocketBase handles CORS natively
+	handle /api/* {
+		reverse_proxy localhost:8091
+	}
+
+	# Everything else → 404
+	handle {
+		respond "Not found" 404
+	}
 
 	import access_log back.obyw.one
 }
