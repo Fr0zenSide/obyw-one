@@ -318,13 +318,15 @@ jobs:
           echo "── Landing Pages ──"
           check "obyw.one"  "https://obyw.one"
           check "maya.fit"  "https://maya.fit"
+          check "wabisabi.obyw.one" "https://wabisabi.obyw.one"
           check_version "obyw.one version" "https://obyw.one/version.json"
           check_version "maya.fit version" "https://maya.fit/version.json"
+          check_version "wabisabi.obyw.one version" "https://wabisabi.obyw.one/version.json"
           echo ""
 
           echo "── APIs ──"
           check "back.obyw.one (PocketBase)" "https://back.obyw.one/api/health"
-          check "wabisabi.obyw.one (PocketBase)" "https://wabisabi.obyw.one/api/health"
+          check "wabisabi.obyw.one API (PocketBase)" "https://wabisabi.obyw.one/api/health"
           check "api.maya.fit (Kuzzle)" "https://api.maya.fit/_healthCheck"
           echo ""
 
