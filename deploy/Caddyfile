@@ -216,8 +216,29 @@ back.obyw.one {
 wabisabi.obyw.one {
 	import security_headers
 
-	# PocketBase handles CORS natively
-	reverse_proxy localhost:8090
+	header {
+		Content-Security-Policy "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; script-src 'self' https://umami.obyw.one"
+		Cache-Control "public, max-age=3600"
+	}
+
+	# PocketBase API — handles CORS natively
+	handle /api/* {
+		reverse_proxy localhost:8090
+	}
+
+	# PocketBase admin UI
+	handle /_/* {
+		reverse_proxy localhost:8090
+	}
+
+	# Landing page static files
+	handle {
+		root * /srv/www/wabisabi.obyw.one
+		file_server
+	}
+
+	@assets path /css/* /js/* /assets/*
+	header @assets Cache-Control "public, max-age=86400, immutable"
 
 	import access_log wabisabi.obyw.one
 }
